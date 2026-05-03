@@ -41,7 +41,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
 
       _controller = CameraController(
         backCamera,
-        ResolutionPreset.high,
+        ResolutionPreset.medium,
         enableAudio: false,
       );
 
@@ -61,19 +61,17 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   // Handle lifecycle changes to manage camera resources
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final CameraController? cameraController = _controller;
-    if (cameraController == null || !cameraController.value.isInitialized) {
-      return;
-    }
-
     if (state == AppLifecycleState.inactive) {
-      cameraController.dispose();
+      _controller?.dispose();
+      _controller = null;
       _isCameraInitialized = false;
       if (mounted) {
         setState(() {});
       }
     } else if (state == AppLifecycleState.resumed) {
-      _initCamera();
+      if (_controller == null || !_controller!.value.isInitialized) {
+        _initCamera();
+      }
     }
   }
 
@@ -95,8 +93,8 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   //
   // Full-compensation matrix (t = 1.0):
   //   R_out = R
-  //   G_out = G + 0.7 * R   (shift 70% of red into green)
-  //   B_out = B + 0.7 * R   (shift 70% of red into blue)
+  //   G_out = G + 1.0 * R   (shift 100% of red into green)
+  //   B_out = B + 1.0 * R   (shift 100% of red into blue)
   //
   // Slider → t mapping:
   //   slider = +1.0 (right, +100%) → t = 1.0  (Maximal Protanopia Compensation)
@@ -106,16 +104,18 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
     final double t = _protanSeverity;
 
     if (t >= 0) {
-      // COMPENSATION MODE (Maximal Daltonization at t = 1.0)
-      // Uses standard Daltonize error shift: Err_R = R - R_sim
-      // G_out = G + 0.7 * Err_R, B_out = B + 0.7 * Err_R
-      final double cv = t * 0.3031; // 0.7 * 0.433
+      // COMPENSATION MODE (Maximal Protanopia Compensation at t = 1.0)
+      // Shifts 100% of the Red channel information into Green and Blue.
+      // R_out = 1.0 * R
+      // G_out = 1.0 * G + t * R
+      // B_out = 1.0 * B + t * R
+      final double shift = t * 1.0;
       
       return <double>[
-        1.0, 0.0, 0.0, 0.0, 0.0,
-        cv,  1.0 - cv, 0.0, 0.0, 0.0,
-        cv, -cv, 1.0, 0.0, 0.0,
-        0.0, 0.0, 0.0, 1.0, 0.0,
+        1.0,   0.0, 0.0, 0.0, 0.0,
+        shift, 1.0, 0.0, 0.0, 0.0,
+        shift, 0.0, 1.0, 0.0, 0.0,
+        0.0,   0.0, 0.0, 1.0, 0.0,
       ];
     } else {
       // SIMULATION MODE (Full Protanopia Simulation at t = -1.0)
