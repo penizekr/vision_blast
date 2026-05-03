@@ -107,7 +107,8 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
     final double t = -_protanSeverity;
 
     // Redistribution weight (Viénot 1999 empirical value)
-    const double rw = 0.7;
+    //const double rw = 0.7;
+    const double rw = 0.9;
 
     // rG and rB can be negative (inverse mode) – ColorFiltered handles that fine
     final double rG = t * rw;
@@ -122,6 +123,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
       0,   0,  0,  1, 0,  // A_out = 1*A
     ];
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -243,4 +245,5 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
       ],
     );
   }
+
 }
