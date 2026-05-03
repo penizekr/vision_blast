@@ -15,7 +15,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   CameraController? _controller;
   bool _isCameraInitialized = false;
   
-  // Protanomaly compensation: -1.0 (left, max comp) to 0.0 (center, no effect) to +1.0 (right)
+  // Protanomaly compensation: +1.0 (right, max comp) to 0.0 (center, no effect) to -1.0 (left, simulate full protanomaly)
   double _protanSeverity = 0.0;
 
   @override
@@ -99,29 +99,43 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   //   B_out = B + 0.7 * R   (shift 70% of red into blue)
   //
   // Slider → t mapping:
-  //   slider = -1.0 (left,  -100%) → t = 1.0  (max compensation)
-  //   slider =  0.0 (center,  0%) → t = 0.0  (no effect / identity)
-  //   slider = +1.0 (right, +100%) → t = -1.0 (inverted, for testing)
+  //   slider = +1.0 (right, +100%) → t = 1.0  (Maximal Protanopia Compensation)
+  //   slider =  0.0 (center,  0%) → t = 0.0  (Normal Vision)
+  //   slider = -1.0 (left,  -100%) → t = -1.0 (Full Protanopia Simulation)
   List<double> _getColorMatrix() {
-    // t in [-1, 1]: negative = compensation, positive = inverse/simulation
-    final double t = -_protanSeverity;
+    final double t = _protanSeverity;
 
-    // Redistribution weight (Viénot 1999 empirical value)
-    //const double rw = 0.7;
-    const double rw = 0.9;
+    if (t >= 0) {
+      // COMPENSATION MODE (Maximal Daltonization at t = 1.0)
+      // Uses standard Daltonize error shift: Err_R = R - R_sim
+      // G_out = G + 0.7 * Err_R, B_out = B + 0.7 * Err_R
+      final double cv = t * 0.3031; // 0.7 * 0.433
+      
+      return <double>[
+        1.0, 0.0, 0.0, 0.0, 0.0,
+        cv,  1.0 - cv, 0.0, 0.0, 0.0,
+        cv, -cv, 1.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 1.0, 0.0,
+      ];
+    } else {
+      // SIMULATION MODE (Full Protanopia Simulation at t = -1.0)
+      // Interpolates towards Viénot 1999 Protanopia matrix
+      final double s = -t; // 0.0 to 1.0
+      
+      final double rR = 1.0 - s * 0.433; // 1.0 -> 0.567
+      final double rG = s * 0.433;       // 0.0 -> 0.433
+      final double gR = s * 0.558;       // 0.0 -> 0.558
+      final double gG = 1.0 - s * 0.558; // 1.0 -> 0.442
+      final double bG = s * 0.242;       // 0.0 -> 0.242
+      final double bB = 1.0 - s * 0.242; // 1.0 -> 0.758
 
-    // rG and rB can be negative (inverse mode) – ColorFiltered handles that fine
-    final double rG = t * rw;
-    final double rB = t * rw;
-
-    // 5x4 ColorFilter matrix, row-major:
-    //   each row = [R_coeff, G_coeff, B_coeff, A_coeff, offset]
-    return <double>[
-      1,   0,  0,  0, 0,  // R_out = 1*R
-      rG,  1,  0,  0, 0,  // G_out = rG*R + 1*G
-      rB,  0,  1,  0, 0,  // B_out = rB*R + 1*B
-      0,   0,  0,  1, 0,  // A_out = 1*A
-    ];
+      return <double>[
+        rR,  rG,  0.0, 0.0, 0.0,
+        gR,  gG,  0.0, 0.0, 0.0,
+        0.0, bG,  bB,  0.0, 0.0,
+        0.0, 0.0, 0.0, 1.0, 0.0,
+      ];
+    }
   }
 
 
@@ -208,7 +222,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Protan Comp',
+              'Protan Adj (+Max / -Min)',
               style: TextStyle(
                 color: Colors.orangeAccent,
                 fontWeight: FontWeight.bold,
