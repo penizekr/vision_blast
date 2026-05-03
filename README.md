@@ -1,6 +1,6 @@
 # vision_blast
 
-Simple application to compensate and simulate protanomaly   
+Simple application to compensate and simulate protanomaly.   
 A new Flutter project.
 
 
